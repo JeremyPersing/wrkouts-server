@@ -1,4 +1,4 @@
-# Fitness App
+# Fitness App - Adosus
 
 Create a fitness app that has the following features
 
