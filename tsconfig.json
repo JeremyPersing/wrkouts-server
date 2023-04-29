@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "removeComments": true,
+    "target": "ES6",
+    "sourceMap": false,
+    "outDir": "dist",
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*", "src/scripts/*.ts"],
+  "exclude": ["node_modules"],
+  "typeRoots": [
+    "./src/types", // this is where you define your types
+    "./node_modules/@types" //this where npm packages containing types are located
+  ]
+}
