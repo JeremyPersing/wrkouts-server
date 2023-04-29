@@ -3,6 +3,7 @@ config();
 import express from "express";
 
 import { mongoConnect } from "./db/mongoConnect";
+import auth from "./routes/auth";
 
 mongoConnect()
   .then(() => {
@@ -10,6 +11,7 @@ mongoConnect()
 
     app.use(express.json());
 
+    app.use("/", auth);
     app.get("/", (req, res) => res.send("Hi"));
 
     const PORT = 4000;
