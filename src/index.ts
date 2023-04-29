@@ -1,11 +1,21 @@
+import { config } from "dotenv";
+config();
 import express from "express";
 
-const app = express();
+import { mongoConnect } from "./db/mongoConnect";
 
-app.use(express.json());
+mongoConnect()
+  .then(() => {
+    const app = express();
 
-app.get("/", (req, res) => res.send("Hi"));
+    app.use(express.json());
 
-const PORT = 4000;
+    app.get("/", (req, res) => res.send("Hi"));
 
-app.listen(PORT, () => console.log("listening on port", PORT));
+    const PORT = 4000;
+
+    app.listen(PORT, () => console.log("listening on port", PORT));
+  })
+  .catch((error: any) => {
+    console.error("unable to connect to database", error);
+  });
