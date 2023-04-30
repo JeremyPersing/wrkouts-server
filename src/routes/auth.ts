@@ -1,5 +1,6 @@
 import express, { Response } from "express";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 import { userAuthSchema } from "../constants";
 import { User } from "../models/User";
@@ -19,9 +20,8 @@ const getUserByEmail = async (email: string) => {
   }
 };
 
-const handleInvalidEmailOrPassword = (res: Response) => {
+const handleInvalidEmailOrPassword = (res: Response) =>
   res.status(401).send("Invalid email or password.");
-};
 
 router.post("/register", async (req, res) => {
   try {
@@ -41,7 +41,7 @@ router.post("/register", async (req, res) => {
 
     await dbUser.save();
 
-    return res.send({ email: user.email });
+    res.send({ email: user.email });
   } catch (error) {
     handleError(error, res, "Unable to register account.");
   }

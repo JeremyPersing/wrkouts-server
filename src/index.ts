@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 config();
 import express from "express";
+import cors from "cors";
 
 import { mongoConnect } from "./db/mongoConnect";
 import auth from "./routes/auth";
@@ -10,6 +11,7 @@ mongoConnect()
     const app = express();
 
     app.use(express.json());
+    app.use(cors());
 
     app.use("/", auth);
     app.get("/", (req, res) => res.send("Hi"));
