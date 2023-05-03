@@ -1,6 +1,7 @@
 import express, { Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { expressjwt, Request as JWTRequest } from "express-jwt";
 
 import { userAuthSchema } from "../constants";
 import { User } from "../models/User";
@@ -23,6 +24,26 @@ const getUserByEmail = async (email: string) => {
 const handleInvalidEmailOrPassword = (res: Response) =>
   res.status(401).send("Invalid email or password.");
 
+const createTokenPair = (userID: string) => {
+  const accessToken = jwt.sign(
+    { id: userID },
+    process.env.ACCESS_TOKEN_SECRET as string,
+    {
+      expiresIn: 60 * 60 * 24,
+    }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: userID },
+    process.env.REFRESH_TOKEN_SECRET as string,
+    {
+      expiresIn: 60 * 60 * 24 * 7,
+    }
+  );
+
+  return { accessToken, refreshToken };
+};
+
 router.post("/register", async (req, res) => {
   try {
     const user = await userAuthSchema.validate(req.body);
@@ -41,7 +62,9 @@ router.post("/register", async (req, res) => {
 
     await dbUser.save();
 
-    res.send({ email: user.email });
+    const { accessToken, refreshToken } = createTokenPair(dbUser.id);
+
+    res.send({ id: dbUser?.id, accessToken, refreshToken });
   } catch (error) {
     handleError(error, res, "Unable to register account.");
   }
@@ -56,10 +79,38 @@ router.post("/login", async (req, res) => {
     const isValid = await bcrypt.compare(user.password, existingUser.password);
     if (!isValid) return handleInvalidEmailOrPassword(res);
 
-    res.send({ email: user.email });
+    const { accessToken, refreshToken } = createTokenPair(existingUser.id);
+
+    res.send({ id: existingUser?.id, accessToken, refreshToken });
   } catch (error) {
     handleError(error, res, "Unable to login.");
   }
 });
+
+router.post(
+  "/token",
+  expressjwt({
+    secret: process.env.REFRESH_TOKEN_SECRET as string,
+    algorithms: ["HS256"],
+    getToken: function fromHeaderOrQuerystring(req) {
+      if (
+        req.headers.authorization &&
+        req.headers.authorization.split(" ")[0] === "Bearer"
+      )
+        return req.headers.authorization.split(" ")[1];
+
+      return undefined;
+    },
+  }),
+  async (req: JWTRequest, res) => {
+    if (req.auth?.id) {
+      const { accessToken, refreshToken } = createTokenPair(req.auth.id);
+      return res.send({ accessToken, refreshToken });
+    }
+
+    // probably will never get to this point
+    res.status(401).send("Refresh Token has expired");
+  }
+);
 
 export default router;

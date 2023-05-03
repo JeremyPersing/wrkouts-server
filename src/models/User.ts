@@ -6,7 +6,7 @@ type UserType = {
 };
 
 const userSchema = new mongoose.Schema<UserType>({
-  email: { type: String, required: true, unique: true, min: 1, max: 256 },
+  email: { type: String, required: true, min: 1, max: 256 },
   password: { type: String, required: true, min: 8 },
 });
 
