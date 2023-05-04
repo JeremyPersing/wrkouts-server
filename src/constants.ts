@@ -11,3 +11,8 @@ export const userAuthSchema = object({
       "Your password must have 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 special character or 1 number."
     ),
 });
+
+export const oauthLoginSchema = object({
+  provider: string().required("Provider is required").max(100),
+  token: string().required(),
+});

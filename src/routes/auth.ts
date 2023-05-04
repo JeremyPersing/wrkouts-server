@@ -2,8 +2,9 @@ import express, { Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { expressjwt, Request as JWTRequest } from "express-jwt";
+import { OAuth2Client } from "google-auth-library";
 
-import { userAuthSchema } from "../constants";
+import { oauthLoginSchema, userAuthSchema } from "../constants";
 import { User } from "../models/User";
 
 const router = express.Router();
@@ -16,6 +17,25 @@ const handleError = (error: any, res: Response, alternative: string) => {
 const getUserByEmail = async (email: string) => {
   try {
     return await User.findOne({ email }).exec();
+  } catch (error) {
+    return null;
+  }
+};
+
+const verifyGoogleIDToken = async (idToken: string) => {
+  try {
+    // https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload?.email;
+    const emailVerified = payload?.email_verified;
+
+    return { email, emailVerified };
   } catch (error) {
     return null;
   }
@@ -74,7 +94,8 @@ router.post("/login", async (req, res) => {
   try {
     const user = await userAuthSchema.validate(req.body);
     const existingUser = await getUserByEmail(user.email);
-    if (!existingUser) return handleInvalidEmailOrPassword(res);
+    if (!existingUser || !existingUser.password)
+      return handleInvalidEmailOrPassword(res);
 
     const isValid = await bcrypt.compare(user.password, existingUser.password);
     if (!isValid) return handleInvalidEmailOrPassword(res);
@@ -82,6 +103,52 @@ router.post("/login", async (req, res) => {
     const { accessToken, refreshToken } = createTokenPair(existingUser.id);
 
     res.send({ id: existingUser?.id, accessToken, refreshToken });
+  } catch (error) {
+    handleError(error, res, "Unable to login.");
+  }
+});
+
+router.post("/oauth/login", async (req, res) => {
+  try {
+    const { token, provider } = await oauthLoginSchema.validate(req.body);
+    if (provider === "google") {
+      const payload = await verifyGoogleIDToken(token);
+
+      if (!payload) return res.status(400).send("Unable to login.");
+
+      const { email, emailVerified } = payload;
+      if (!emailVerified) return res.status(403).send("Invalid credentials");
+      if (!email) return res.send(401).send("Unable to get info");
+
+      let existingUser = await getUserByEmail(email);
+
+      if (
+        existingUser?.socialLoginProvider &&
+        existingUser?.socialLoginProvider !== provider
+      )
+        return res.send("Email already registered.");
+
+      // User needs to register account or user needs to be logged in
+      if (
+        !existingUser ||
+        (existingUser.email === email &&
+          existingUser?.socialLoginProvider === provider)
+      ) {
+        if (!existingUser) {
+          existingUser = new User({
+            email,
+            socialLoginProvider: provider,
+          });
+
+          await existingUser.save();
+        }
+
+        const { accessToken, refreshToken } = createTokenPair(existingUser.id);
+        return res.send({ id: existingUser.id, accessToken, refreshToken });
+      }
+    }
+
+    res.status(401).send("Unable to get info");
   } catch (error) {
     handleError(error, res, "Unable to login.");
   }
