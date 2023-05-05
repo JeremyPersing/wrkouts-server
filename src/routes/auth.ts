@@ -4,8 +4,16 @@ import jwt from "jsonwebtoken";
 import { expressjwt, Request as JWTRequest } from "express-jwt";
 import { OAuth2Client } from "google-auth-library";
 
-import { oauthLoginSchema, userAuthSchema } from "../constants";
+import {
+  clientURL,
+  forgotUserPasswordSchema,
+  oauthLoginSchema,
+  resetPasswordSchema,
+  userAuthSchema,
+} from "../constants";
 import { User } from "../models/User";
+import { sendEmail } from "../utils/sendEmail";
+import { secureRoute } from "../middleware/expressjwt";
 
 const router = express.Router();
 
@@ -21,6 +29,11 @@ const getUserByEmail = async (email: string) => {
     return null;
   }
 };
+
+const createForgotPasswordToken = (email: string) =>
+  jwt.sign({ email }, process.env.EMAIL_TOKEN_SECRET as string, {
+    expiresIn: 60 * 10,
+  });
 
 const verifyGoogleIDToken = async (idToken: string) => {
   try {
@@ -154,21 +167,90 @@ router.post("/oauth/login", async (req, res) => {
   }
 });
 
+router.post("/forgotpassword", async (req, res) => {
+  const response = {
+    message: "",
+    emailSent: false,
+  };
+
+  try {
+    const { email } = await forgotUserPasswordSchema.validate(req.body);
+
+    const user = await getUserByEmail(email);
+
+    if (!user) {
+      response.message = "Email not registered.";
+      return res.send(response);
+    }
+
+    if (user && user?.socialLoginProvider) {
+      response.message =
+        "That account is linked to a social login provider. Please use your social account to login.";
+      return res.send(response);
+    }
+
+    const token = createForgotPasswordToken(user.email);
+    const link = `${clientURL}/user/resetpassword/${token}`;
+    const subject = "Forgot Your Password?";
+    const text = "Reset your password for your account";
+
+    const html =
+      `
+  	<p>It looks like you forgot your password.
+  	If you did, please click the link below to reset it.
+  	If you did not, disregard this email. Please update your password
+  	within 10 minutes, otherwise you will have to repeat this
+  	process. <a href=` +
+      link +
+      `>Click to Reset Password</a>
+  	</p><br />`;
+
+    await sendEmail({
+      to: email,
+      subject,
+      text,
+      html,
+    });
+
+    response.message =
+      "An email has been sent displaying instructions on how to change your password. Please check the inbox of the email you provided.";
+    response.emailSent = true;
+    res.send(response);
+  } catch (error: any) {
+    handleError(error, res, "Internal Server Error");
+  }
+});
+
+router.post(
+  "/resetpassword",
+  secureRoute(process.env.EMAIL_TOKEN_SECRET as string),
+  async (req: JWTRequest, res) => {
+    try {
+      const { password } = await resetPasswordSchema.validate(req.body);
+
+      if (req.auth?.email) {
+        const user = await getUserByEmail(req.auth.email);
+
+        if (user) {
+          const hashedPassword = await bcrypt.hash(password, 10);
+
+          user.password = hashedPassword;
+          await user.save();
+
+          return res.send("Password reset");
+        }
+      }
+
+      res.send("Unable to reset password.");
+    } catch (error) {
+      handleError(error, res, "Unable to reset password.");
+    }
+  }
+);
+
 router.post(
   "/token",
-  expressjwt({
-    secret: process.env.REFRESH_TOKEN_SECRET as string,
-    algorithms: ["HS256"],
-    getToken: function fromHeaderOrQuerystring(req) {
-      if (
-        req.headers.authorization &&
-        req.headers.authorization.split(" ")[0] === "Bearer"
-      )
-        return req.headers.authorization.split(" ")[1];
-
-      return undefined;
-    },
-  }),
+  secureRoute(process.env.REFRESH_TOKEN_SECRET as string),
   async (req: JWTRequest, res) => {
     if (req.auth?.id) {
       const { accessToken, refreshToken } = createTokenPair(req.auth.id);
