@@ -190,7 +190,7 @@ router.post("/forgotpassword", async (req, res) => {
     }
 
     const token = createForgotPasswordToken(user.email);
-    const link = `${clientURL}/user/resetpassword/${token}`;
+    const link = `${clientURL}/auth/resetpassword/${token}`;
     const subject = "Forgot Your Password?";
     const text = "Reset your password for your account";
 
