@@ -1,4 +1,4 @@
-import { object, ref, string } from "yup";
+import { number, object, ref, string } from "yup";
 
 export const clientURL = "http://localhost:3000";
 
@@ -31,4 +31,11 @@ export const resetPasswordSchema = object({
   passwordRepeat: string()
     .oneOf([ref("password"), undefined], "Passwords don't match")
     .required("A repeat of the repeat of the password is required."),
+});
+
+export const timerWorkoutSchema = object({
+  name: string().required().max(100),
+  rest: number().required().min(1),
+  workout: number().required().min(1),
+  rounds: number().required().min(1),
 });

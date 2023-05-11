@@ -1,7 +1,7 @@
 import express, { Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { expressjwt, Request as JWTRequest } from "express-jwt";
+import { Request as JWTRequest } from "express-jwt";
 import { OAuth2Client } from "google-auth-library";
 
 import {
@@ -14,13 +14,9 @@ import {
 import { User } from "../models/User";
 import { sendEmail } from "../utils/sendEmail";
 import { secureRoute } from "../middleware/expressjwt";
+import { handleError } from "../utils/handleError";
 
 const router = express.Router();
-
-const handleError = (error: any, res: Response, alternative: string) => {
-  if (error?.message) return res.status(400).send(error.message);
-  res.status(500).send(alternative);
-};
 
 const getUserByEmail = async (email: string) => {
   try {
@@ -91,13 +87,14 @@ router.post("/register", async (req, res) => {
     const dbUser = new User({
       email: user.email,
       password: hashedPassword,
+      timerWorkouts: [],
     });
 
     await dbUser.save();
 
     const { accessToken, refreshToken } = createTokenPair(dbUser.id);
 
-    res.send({ id: dbUser?.id, accessToken, refreshToken });
+    res.send({ accessToken, refreshToken });
   } catch (error) {
     handleError(error, res, "Unable to register account.");
   }
@@ -115,7 +112,7 @@ router.post("/login", async (req, res) => {
 
     const { accessToken, refreshToken } = createTokenPair(existingUser.id);
 
-    res.send({ id: existingUser?.id, accessToken, refreshToken });
+    res.send({ accessToken, refreshToken });
   } catch (error) {
     handleError(error, res, "Unable to login.");
   }
@@ -151,6 +148,7 @@ router.post("/oauth/login", async (req, res) => {
           existingUser = new User({
             email,
             socialLoginProvider: provider,
+            timerWorkouts: [],
           });
 
           await existingUser.save();
