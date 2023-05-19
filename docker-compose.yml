@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  nodejs:
+    build: .
+    container_name: 'wrkouts-server'
+    ports: 
+      - '4000:4000'
+    restart: 'always'

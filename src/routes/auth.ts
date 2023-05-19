@@ -4,17 +4,17 @@ import jwt from "jsonwebtoken";
 import { Request as JWTRequest } from "express-jwt";
 import { OAuth2Client } from "google-auth-library";
 
-import {
-  clientURL,
-  forgotUserPasswordSchema,
-  oauthLoginSchema,
-  resetPasswordSchema,
-  userAuthSchema,
-} from "../constants";
+import { clientURL } from "../constants";
 import { User } from "../models/User";
 import { sendEmail } from "../utils/sendEmail";
 import { secureRoute } from "../middleware/expressjwt";
 import { handleError } from "../utils/handleError";
+import {
+  userAuthSchema,
+  forgotUserPasswordSchema,
+  oauthLoginSchema,
+  resetPasswordSchema,
+} from "../validation/auth";
 
 const router = express.Router();
 
@@ -24,6 +24,24 @@ const getUserByEmail = async (email: string) => {
   } catch (error) {
     return null;
   }
+};
+
+const createUser = (
+  email: string,
+  password?: string,
+  socialLoginProvider?: string
+) => {
+  return new User({
+    email,
+    password,
+    socialLoginProvider,
+    timerWorkouts: [],
+    workouts: [],
+  });
+};
+
+const cleanUserEmail = (email: string) => {
+  return email.toLowerCase();
 };
 
 const createForgotPasswordToken = (email: string) =>
@@ -76,25 +94,23 @@ const createTokenPair = (userID: string) => {
 router.post("/register", async (req, res) => {
   try {
     const user = await userAuthSchema.validate(req.body);
+    const email = cleanUserEmail(req.body.email);
 
-    const existingUser = await getUserByEmail(user.email);
+    const existingUser = await getUserByEmail(email);
 
     if (existingUser)
       return res.status(409).send("Email is already registered.");
 
     const hashedPassword = await bcrypt.hash(user.password, 10);
 
-    const dbUser = new User({
-      email: user.email,
-      password: hashedPassword,
-      timerWorkouts: [],
-    });
+    const dbUser = createUser(email, hashedPassword);
 
     await dbUser.save();
 
     const { accessToken, refreshToken } = createTokenPair(dbUser.id);
+    dbUser.password = undefined;
 
-    res.send({ accessToken, refreshToken });
+    res.send({ user: dbUser, accessToken, refreshToken });
   } catch (error) {
     handleError(error, res, "Unable to register account.");
   }
@@ -103,7 +119,9 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const user = await userAuthSchema.validate(req.body);
-    const existingUser = await getUserByEmail(user.email);
+    const email = cleanUserEmail(req.body.email);
+
+    const existingUser = await getUserByEmail(email);
     if (!existingUser || !existingUser.password)
       return handleInvalidEmailOrPassword(res);
 
@@ -111,8 +129,9 @@ router.post("/login", async (req, res) => {
     if (!isValid) return handleInvalidEmailOrPassword(res);
 
     const { accessToken, refreshToken } = createTokenPair(existingUser.id);
+    existingUser.password = undefined;
 
-    res.send({ accessToken, refreshToken });
+    res.send({ user: existingUser, accessToken, refreshToken });
   } catch (error) {
     handleError(error, res, "Unable to login.");
   }
@@ -126,9 +145,11 @@ router.post("/oauth/login", async (req, res) => {
 
       if (!payload) return res.status(400).send("Unable to login.");
 
-      const { email, emailVerified } = payload;
+      const { email: payloadEmail, emailVerified } = payload;
       if (!emailVerified) return res.status(403).send("Invalid credentials");
-      if (!email) return res.send(401).send("Unable to get info");
+      if (!payloadEmail) return res.send(401).send("Unable to get info");
+
+      const email = cleanUserEmail(payloadEmail);
 
       let existingUser = await getUserByEmail(email);
 
@@ -145,17 +166,15 @@ router.post("/oauth/login", async (req, res) => {
           existingUser?.socialLoginProvider === provider)
       ) {
         if (!existingUser) {
-          existingUser = new User({
-            email,
-            socialLoginProvider: provider,
-            timerWorkouts: [],
-          });
+          existingUser = createUser(email, undefined, provider);
 
           await existingUser.save();
         }
 
         const { accessToken, refreshToken } = createTokenPair(existingUser.id);
-        return res.send({ id: existingUser.id, accessToken, refreshToken });
+        existingUser.password = undefined;
+
+        return res.send({ user: existingUser, accessToken, refreshToken });
       }
     }
 
@@ -172,7 +191,8 @@ router.post("/forgotpassword", async (req, res) => {
   };
 
   try {
-    const { email } = await forgotUserPasswordSchema.validate(req.body);
+    const body = await forgotUserPasswordSchema.validate(req.body);
+    const email = cleanUserEmail(body.email);
 
     const user = await getUserByEmail(email);
 
@@ -226,8 +246,10 @@ router.post(
     try {
       const { password } = await resetPasswordSchema.validate(req.body);
 
-      if (req.auth?.email) {
-        const user = await getUserByEmail(req.auth.email);
+      const email = cleanUserEmail(req.body?.email);
+
+      if (email) {
+        const user = await getUserByEmail(email);
 
         if (user) {
           const hashedPassword = await bcrypt.hash(password, 10);

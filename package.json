@@ -26,6 +26,7 @@
     "google-auth-library": "^8.8.0",
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^7.1.0",
+    "mongoose-autopopulate": "^1.0.1",
     "node-mailjet": "^6.0.2",
     "yup": "^1.1.1"
   }

@@ -17,7 +17,7 @@ mongoConnect()
 
     const PORT = 4000;
 
-    app.listen(PORT, () => console.log("listening on port", PORT));
+    app.listen(PORT, () => console.log("Now listening on port", PORT));
   })
   .catch((error: any) => {
     console.error("unable to connect to database", error);
