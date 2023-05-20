@@ -6,7 +6,6 @@ import { OAuth2Client } from "google-auth-library";
 
 import { clientURL } from "../constants";
 import { User } from "../models/User";
-import { sendEmail } from "../utils/sendEmail";
 import { secureRoute } from "../middleware/expressjwt";
 import { handleError } from "../utils/handleError";
 import {
@@ -247,7 +246,7 @@ router.post(
     try {
       const { password } = await resetPasswordSchema.validate(req.body);
 
-      const email = cleanUserEmail(req.body?.email);
+      const email = cleanUserEmail(req.auth?.email);
 
       if (email) {
         const user = await getUserByEmail(email);
