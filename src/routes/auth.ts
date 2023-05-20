@@ -15,6 +15,7 @@ import {
   oauthLoginSchema,
   resetPasswordSchema,
 } from "../validation/auth";
+import { sendMail } from "../utils/sendNodeMail";
 
 const router = express.Router();
 
@@ -223,7 +224,7 @@ router.post("/forgotpassword", async (req, res) => {
       `>Click to Reset Password</a>
   	</p><br />`;
 
-    await sendEmail({
+    await sendMail({
       to: email,
       subject,
       text,
