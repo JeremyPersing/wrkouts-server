@@ -12,7 +12,7 @@ mongoConnect()
     const app = express();
 
     app.use(express.json());
-    app.use(cors());
+    if (process.env.NODE_ENV !== "production") app.use(cors());
 
     const apiLimiter = rateLimit({
       windowMs: 1000, // 1 second
