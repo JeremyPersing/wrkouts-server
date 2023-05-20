@@ -12,7 +12,16 @@ mongoConnect()
     const app = express();
 
     app.use(express.json());
-    if (process.env.NODE_ENV !== "production") app.use(cors());
+
+    var corsOptions = {
+      origin:
+        process.env.NODE_ENV === "production"
+          ? "https://wrkouts.xyz"
+          : "http://localhost:3000",
+      optionsSuccessStatus: 200,
+    };
+
+    app.use(cors(corsOptions));
 
     const apiLimiter = rateLimit({
       windowMs: 1000, // 1 second
