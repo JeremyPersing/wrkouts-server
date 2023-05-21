@@ -3,6 +3,7 @@ config();
 import express from "express";
 import cors from "cors";
 import { rateLimit } from "express-rate-limit";
+import helmet from "helmet";
 
 import { mongoConnect } from "./db/mongoConnect";
 import router from "./routes/index";
@@ -22,6 +23,7 @@ mongoConnect()
     };
 
     app.use(cors(corsOptions));
+    app.use(helmet());
 
     const apiLimiter = rateLimit({
       windowMs: 1000, // 1 second
